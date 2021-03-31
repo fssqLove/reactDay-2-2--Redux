@@ -1,142 +1,245 @@
-# webpack5-reactExp
-webpack5 创建一个react项目
+# 1.状态容器Redux
++ 1.createStore 创建store 保存数据
++ 2.reducer初始化state,并且定义state修改规则
++ 3.dispatch一个action来提交对数据的修改
++ 4.action提交到reducer函数里面，根据传入的action的type,返回新的state
++ 5.getState 获取状态值
++ 6.subscribe 变更订阅
 
-
-# webpack5 创建react工程
-## 1.clone 一份 [webpack5 创建前端工程](https://github.com/fssqLove/webpack5-webExp)
-
-## 2.安装babel 处理react代码
-```js
-npm install --save-dev babel-loader @babel/core @babel/cli @babel/plugin-proposal-class-properties @babel/preset-env core-js @babel/preset-typescript @babel/preset-react
+## 安装
+```
+npm i redux 
 ```
 
-## 3.创建一个新的ts配置文件 `tsconfig.json`
-+ 3.1
-```js
-tsc --init --declaration --allowSyntheticDefaultImports --target esnext --outDir lib
+## 基本使用
+### 第一步创建store ,`src/store/index.ts`
 ```
-+ 3.2 修改配置文件
-```
-/**省略代码**/
-    "jsx": "react",                           /* Specify JSX code generation: 'preserve', 'react-native', or 'react'. */
-/**省略代码**/
-  "include": [
-    "src/**/*"
-  ],
-  "exclude": [
-    "node_modules",
-    "**/*.spec.ts"
-  ]
-```
+import {createStore} from 'redux'
 
-## 4.创建babel配置文件 `.babelrc`
-```js
-{
-    "presets": [
-        [
-            "@babel/preset-env",
-            {
-                "targets": {
-                    "edge": "17",
-                    "firefox": "60",
-                    "chrome": "67",
-                    "safari": "11.1",
-                    "ie": "8"
-                }
-            }
-        ],
-        "@babel/preset-typescript"
-    ],
-    "plugins": [
-        "@babel/plugin-proposal-class-properties"
-    ]
-}
-```
 
-## 5. 修改`webpack.common.js`的js处理
-```
-entry: './src/main.tsx',
-module: {
-    rules: [
-            {
-                test: /\.(ts|js)x?$/,
-                exclude: /node_modules/,
-                loader: 'babel-loader',
-            },
-            ]
-   }
-```
-
-## 6.修改 `main.ts` 为 `main.tsx`
-```
-import { add } from './assets/js/test';
-import './assets/font/iconfont.css';
-import './assets/css/index.scss';
-
-import img1 from './assets/img/1.jpg'
-import img2 from './assets/img/2.jpg'
-
-import React, { useState } from "react";
-import { render } from "react-dom";
-
-function App() {
-  const [state, setState] = useState("CLICK ME");
-
-  return <div>
-    <div className="box">
-      <div className="content">
-        德玛西亚，永不退缩
-            <i className="iconfont icon-xiazai"></i>
-        <img src={img1} />
-        <img src={img2} />
-      </div>
-    </div>
-    <button onClick={() => setState("CLICKED")}>{state}</button>
-  </div>;
+export enum ECountActionType{
+    add="ADD",
+    minus="MINUS"
 }
 
-render(<App />, document.getElementById("root"));
+export interface ICountReduceAction{
+    type:ECountActionType,
+    payload:number
+}
 
-add(1, 2)
-  .then((res) => {
-    console.log(res, 'add');
-  });
+function countReduce(state=0,action:ICountReduceAction){
+    switch (action.type) {
+        case ECountActionType.add:
+            state++;
+            break;
 
+        case ECountActionType.minus:
+            state--;
+        break;
+
+        default:
+            break;
+    }
+    return state;
+}
+
+export default createStore(countReduce)
 ```
 
-## 7. 安装 `react react-dom`
+## 第二步使用引入后使用
 ```
-npm i react react-dom -S 
+// ReduxPage.tsx
+
+import React, { Component } from 'react'
+import store, { ECountActionType } from '../store/index'
+
+export default class ReduxPage extends Component {
+
+    componentDidMount() {
+        store.subscribe(this.update.bind(this))
+    }
+
+    update() {
+        this.forceUpdate()
+    }
+
+    add = () => store.dispatch({ type: ECountActionType.add })
+
+    minus = () => store.dispatch({ type: ECountActionType.minus })
+
+    render() {
+        return (
+            <div>
+                <h3>ReduxPage</h3>
+                <p>{store.getState()}</p>
+                <button onClick={this.add}>add</button>
+                <button onClick={this.minus}>minus</button>
+            </div>
+        )
+    }
+}
+
 ```
+***
+
+# 2.实现自己的 `Redux`
+
+## 第一步定义Redux
 ```
-npm i @types/react @types/react-dom -D
+// myRedux.ts
+
+export function createStore(reducer:Function,enhancer:Function) {
+    if(enhancer){
+        return enhancer(createStore)(reducer)
+    }
+
+    // 保存状态
+    let currentState:any = undefined;
+
+    // 回调函数
+    let currentListeners:Array<Function> = [];
+
+    function getState() {
+       return  currentState
+    }
+
+    function subscribe(listener:Function) {
+        currentListeners.push(listener)
+    }
+
+    function dispatch(action:any) {
+        currentState = reducer(currentState,action)
+
+        currentListeners.forEach(fn=>fn())
+
+        return action
+    }
+
+    dispatch({type:'@@0000/MY-REDUX'})
+
+    return {getState,subscribe,dispatch}
+}
+```
+## 将引入的`Redux`修改为自己的 `myRedux`
+```
+// import {createStore,applyMiddleware} from 'redux'
+import {createStore} from '../myRedux'
+```
+***
+
+# 3.中间件
++ Redux 是一个纯粹的状态管理器，默认支支持同步，实现异步，需要中间件支持，
++ `npm i redux-thunk redux-logger -S` 安装中间件
+
+## 3.1使用异步中间件
+## 第一步修改  `src/store/index.ts` 增加中间件
+```
+import {createStore,applyMiddleware} from 'redux'
+import logger from 'redux-logger';
+import thunk from 'redux-thunk';
+
+export enum ECountActionType{
+    add="ADD",
+    minus="MINUS"
+}
+
+export interface ICountReduceAction{
+    type:ECountActionType,
+    payload?:number
+}
+
+function countReduce(state=0,action:any){
+    switch (typeof action === 'object' &&action.type) {
+        case ECountActionType.add:
+            state++;
+            break;
+
+        case ECountActionType.minus:
+            state--;
+        break;
+
+        default:
+            break;
+    }
+    return state;
+}
+
+// 引入中间件
+export default createStore(countReduce,applyMiddleware(logger,thunk))
 ```
 
-## 8.修改`index.html`
+## 第二步，使用`thunk` 中间件带来的异步提交
 ```
-<!DOCTYPE html>
-<html lang="en">
+import { Dispatch } from 'redux'
 
-<head>
-    <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
-</head>
-
-<body>
-    <div id="root">
-    </div>
-</body>
-
-</html>
+    asyAdd = () => {
+        store.dispatch((dispatch: Dispatch) => {
+            setTimeout(() => {
+                dispatch({ type: ECountActionType.add })
+            }, 2000)
+        })
+    }
 ```
+***
 
-## 9.增加声明文件`index.d.ts`
+# 4.用自己的实现`redux` 使用自己的中间件
+## 第一步增加 `myRedux`方法
 ```
-import img1 from './assets/img/1.jpg'
-import img2 from './assets/img/2.jpg'
+export function applyMiddleware(...middlewares:Array<Function>) {
+    // 返回强化以后的函数
+    return (createStore:any) => (...args:any)=>{
+        const store = createStore(...args)
+
+        let dispatch = store.dispatch
+
+        const midApi = {
+            getState:store.getState,
+            dispatch:(...args:any)=>dispatch(...args)
+        }
+
+        // 使中间件可以获取状态值，派发action
+        const middlewareChain = middlewares.map(middleware=>middleware(midApi))
+
+        // compose可以使middlewareChain函数合并成一个函数
+        dispatch = compose(...middlewareChain)(store.dispatch)
+
+        return {
+            ...store,
+            dispatch
+        }
+    }
+}
+
+export function compose(...funcs:Array<Function>) {
+    if(funcs.length === 0){
+        return (arg:any) => arg
+    }
+
+    if(funcs.length === 1){
+        return funcs[0]
+    }
+
+    return funcs.reduce((a,b)=>(...args:any)=>a(b(...args)))
+}
 ```
+## 第二步修改引入
+```
+// import {createStore,applyMiddleware} from 'redux'
+import {createStore,applyMiddleware} from '../myRedux'
 
-[源码](https://github.com/fssqLove/webpack5-reactExp)
+```
+***
 
+# 5.自己实现中间件
+## redux-logger 实现
+```
+//myReduxLogger.ts
+
+export default function logger() {
+    return (dispatch:any) => (action:any) => {
+        console.log(action)
+        return dispatch(action)
+    }
+}
+```
+[源码](https://github.com/fssqLove/reactDay-2-2--Redux)
